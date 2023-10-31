@@ -1,0 +1,8 @@
+numpy==1.24.3
+ml_collections
+scipy==1.10.1
+scikit-learn==1.2.2
+joblib==1.2.0
+mne==1.4.0
+torch==1.11.0
+tqdm==4.61.0
