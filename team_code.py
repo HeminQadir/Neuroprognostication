@@ -63,11 +63,11 @@ def run_challenge_models(models, data_folder, patient_id, verbose):
         pred_cpcs = pred_cpcs.data.cpu().item()
         pred_cpcs = np.clip(pred_cpcs, 1, 5)  
 
-        print("="*80)
-        print(pred_outcome)
-        print(pred_cpcs)
+        #print("="*80)
+        #print(pred_outcome)
+        #print(pred_cpcs)
         #outcome_probability = round(outcome_probability, 2)
-        print(outcome_probability)
+        #print(outcome_probability)
         
     else:
         pred_outcome, outcome_probability, pred_cpcs = float(0), float(0), float(0) #float('nan'), float('nan'), float('nan')

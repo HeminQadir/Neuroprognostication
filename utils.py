@@ -130,8 +130,8 @@ def setup(config, device):
     model = VisionTransformer(config, zero_head=True)
     model.to(device)
     num_params = count_parameters(model)
-    print(model)
-    print(num_params)
+    #print(model)
+    #print(num_params)
     return model
 
 # Save your trained model.

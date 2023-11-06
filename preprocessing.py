@@ -1,6 +1,7 @@
 import numpy as np
 import mne
-import torch
+import torch 
+import torch.fft as fft
 import julius
 from scipy import signal
 
@@ -91,6 +92,33 @@ def bandpassing(data, sampling_frequency, device):
     
     return data
 
+def bandpassing_fft(config,data, sampling_frequency, device):
+    # Define the bandpass frequencies.
+    passband = [0.1, 30.0]
+
+
+    # Calculate the FFT of the EEG-like signal
+    eeg_fft = fft.fft(data)
+
+    # Define the bandpass filter in the frequency domain
+    nyquist_freq = sampling_frequency/ 2
+    num_samples =  len(eeg_fft[1])
+
+    # Calculate the frequency values corresponding to the FFT components on the CPU
+    freqs = np.fft.fftfreq(num_samples, 1.0 / sampling_frequency)
+    freqs = torch.tensor(freqs, device=device)
+
+    mask = (freqs >= passband[0]) & (freqs <= passband[1])
+
+    # Apply the filter
+
+    eeg_fft_filtered = eeg_fft * mask
+
+    # Calculate the inverse FFT to convert the filtered signal back to the time domain
+    eeg_filtered = fft.ifft(eeg_fft_filtered)
+
+    #print(eeg_fft_filtered)
+    return  eeg_filtered.real
 #%%
 def rescale_data(data):
     # Scale the data to the interval [-1, 1].

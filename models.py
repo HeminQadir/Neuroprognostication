@@ -139,7 +139,7 @@ class Embeddings(nn.Module):
         #torch.Size([10, 512, 12])
 
         #n_patches = 24 #self.in_channels*(int((input_length - patch_size) / patch_size ) + 1)
-        no_tokens = config.in_channels * 24 + 1
+        no_tokens = config.in_channels * 12 + 1
         #print(n_patches)
         self.position_embeddings = nn.Parameter(torch.zeros(1, no_tokens, config.hidden_size))
 
@@ -147,8 +147,8 @@ class Embeddings(nn.Module):
         self.dropout = nn.Dropout(config.transformer["dropout_rate"])
 
     def forward(self, x):
-        print("I am in the Embeding Layer")
-        print(x.shape)
+        #print("I am in the Embeding Layer")
+        #print(x.shape)
         #torch.Size([10, 2, 30000])
         B = x.shape[0]
         cls_tokens = self.cls_token.expand(B, -1, -1)
@@ -160,7 +160,7 @@ class Embeddings(nn.Module):
         #torch.Size([10, 1536, 12])
 
         x = x.view(x.shape[0], self.in_channels, self.hidden_size, x.shape[2])
-        print(x.shape)
+        #print(x.shape)
         #torch.Size([10, 2, 768, 12])
 
         x = x.transpose(-2, -3)
@@ -176,12 +176,12 @@ class Embeddings(nn.Module):
         #torch.Size([10, 24, 768])
 
         x = torch.cat((cls_tokens, x), dim=1)
-        print(x.shape)
+        #print(x.shape)
         #torch.Size([10, 25, 768])
 
         #embeddings = self.position_embeddings(x)
         k = self.position_embeddings
-        print(k.shape)
+        #print(k.shape)
         #torch.Size([1, 25, 768])
 
         embeddings = x + k
@@ -276,7 +276,7 @@ class VisionTransformer(nn.Module):
     def __init__(self, config, zero_head=False, vis=False):
         super(VisionTransformer, self).__init__()
 
-        no_tokens = config.in_channels * 24 + 1
+        no_tokens = config.in_channels * 12 + 1
         self.num_classes = config.num_classes
         self.zero_head = zero_head
         self.classifier = config.classifier

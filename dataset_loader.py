@@ -3,6 +3,7 @@ import torch
 import random
 from preprocessing import * 
 from torch.utils.data import Dataset
+import time
 
 
 #%%
@@ -113,7 +114,7 @@ def load_data(config, data_folder, patient_id, device, train=True):
             recording_location = os.path.join(data_folder, patient_id, '{}_{}'.format(recording_id, group))
             if os.path.exists(recording_location + '.hea'):
                 sampling_frequency, length = load_recording_header(recording_location, check_values=True)  # we created to read only the header and get the fs
-                five_min_recording = sampling_frequency * 60 * 5
+                five_min_recording = sampling_frequency * 60 * window_size
 
                 # checking the length of the hour recording 
                 if length >= five_min_recording:
@@ -124,7 +125,9 @@ def load_data(config, data_folder, patient_id, device, train=True):
                     # checking if we have all the channels 
                     if all(channel in channels for channel in eeg_channels):
                         data, channels = reduce_channels(data, channels, eeg_channels)
-                        data = bandpassing(data, sampling_frequency, device)
+                        
+                        data = bandpassing_fft(config, data, sampling_frequency, device)
+                    
                         data, resampling_frequency = resampling(config, data, sampling_frequency)
                         data = rescale_data(data)
                         bipolar_data = torch.zeros((config.in_channels, data.shape[1]), dtype=torch.float32)
@@ -143,7 +146,9 @@ def load_data(config, data_folder, patient_id, device, train=True):
     segments = segment_eeg_signal(bipolar_data, window_size, step_size, resampling_frequency)
     indx = random.randint(0, len(segments)-1)
     data_5_min = segments[indx]
-    print(data_5_min.shape)
+    #print('i am here in dataloader')
+    #print(data_5_min.shape)
+
 
     if train:
         # Extract labels.

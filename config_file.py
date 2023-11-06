@@ -5,18 +5,18 @@ def get_config():
     config = ml_collections.ConfigDict()
     config.patches = ml_collections.ConfigDict({'size': 1000})
     config.hidden_size = 768
-    #config.input_length = 60000
+    config.input_length = 30000
 
-    config.window_size = 10   # in munites
+    config.window_size = 5  # in munites
     
     config.step_size = 3     # in munites
     config.num_classes = 2
     config.resampling_frequency  = 100
 
-    config.in_channels = 18
+    config.in_channels = 2
     
-    config.train_batch_size = 5
-    config.eval_batch_size = 5
+    config.train_batch_size = 2
+    config.eval_batch_size = 2
     config.learning_rate = 1e-4 
     config.num_steps = 20000
     config.eval_every = 500
