@@ -6,7 +6,6 @@ from __future__ import print_function
 
 import torch
 import torch.nn as nn
-from torch.nn import functional as F
 from torch.nn import CrossEntropyLoss, Dropout, Softmax, Linear, LayerNorm, MSELoss
 
 import math

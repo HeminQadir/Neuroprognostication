@@ -463,8 +463,8 @@ def setup(input_length, num_classes, in_channels, device):
     model = VisionTransformer(config, input_length, zero_head=True, num_classes=num_classes)
     model.to(device)
     num_params = count_parameters(model)
-    print(model)
-    print(num_params)
+    #print(model)
+    #print(num_params)
     return model
 
 # Save your trained model.

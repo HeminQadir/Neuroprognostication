@@ -102,7 +102,7 @@ def load_data(config, data_folder, patient_id, device, train=True):
     resampling_frequency = config.resampling_frequency 
     window_size = config.window_size
     step_size   = config.step_size
-    size = config.resampling_frequency * config.window_size
+    size = config.resampling_frequency * config.window_size * 60
     bipolar_data = torch.zeros((config.in_channels, size), dtype=torch.float32)
     bipolar_data = bipolar_data.to(device)
 
@@ -125,15 +125,34 @@ def load_data(config, data_folder, patient_id, device, train=True):
                     # checking if we have all the channels 
                     if all(channel in channels for channel in eeg_channels):
                         data, channels = reduce_channels(data, channels, eeg_channels)
-                        
-                        data = bandpassing_fft(config, data, sampling_frequency, device)
-                    
                         data, resampling_frequency = resampling(config, data, sampling_frequency)
-                        data = rescale_data(data)
+                    
+                       
+                        #start_time = time.time()
+                        #data , resampling_frequency = preprocess_data(data, sampling_frequency)
+                        #data = bandpassing_fft(config,data, sampling_frequency, device)
+
+                        data = bandpassing(data, resampling_frequency , device)
+
+                        #end_time = time.time()
+                        #elapsed_time = end_time - start_time
+                        #print(f"Elapsed time: {elapsed_time} seconds")
+
+                        #data = torch.tensor(data, dtype=torch.float32)
+                        #data = data.to(device)
+                        #data, resampling_frequency = resampling(config, data, sampling_frequency)
+                        
                         bipolar_data = torch.zeros((config.in_channels, data.shape[1]), dtype=torch.float32)
                         bipolar_data = bipolar_data.to(device)
                         bipolar_data[0,:] = data[0,:] - data[1,:]   # Convert to bipolar montage: F3-P3 and F4-P4 
                         bipolar_data[1,:] = data[2,:] - data[3,:]
+
+
+                        #data = rescale_data(data)
+                        bipolar_data[0,:] = rescale_data(bipolar_data[0,:])
+                        bipolar_data[1,:] = rescale_data(bipolar_data[1,:])
+
+ 
 
                         break
                     else:

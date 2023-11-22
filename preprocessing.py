@@ -7,7 +7,7 @@ from scipy import signal
 
 #%%
 # Preprocess data.
-def preprocess_data(data, sampling_frequency, utility_frequency):
+def preprocess_data(data, sampling_frequency):
     # Define the bandpass frequencies.
     passband = [0.1, 30.0]
 
@@ -15,12 +15,12 @@ def preprocess_data(data, sampling_frequency, utility_frequency):
     data = np.asarray(data, dtype=np.float64)
 
     # If the utility frequency is between bandpass frequencies, then apply a notch filter.
-    if utility_frequency is not None and passband[0] <= utility_frequency <= passband[1]:
-        data = mne.filter.notch_filter(data, sampling_frequency, utility_frequency, n_jobs=4, verbose='error')
+    #if utility_frequency is not None and passband[0] <= utility_frequency <= passband[1]:
+        #data = mne.filter.notch_filter(data, sampling_frequency, utility_frequency, n_jobs= 'cuda', verbose='error')
 
     # Apply a bandpass filter.
-    data = mne.filter.filter_data(data, sampling_frequency, passband[0], passband[1], n_jobs=4, verbose='error')
-
+    data = mne.filter.filter_data(data, sampling_frequency, passband[0], passband[1], n_jobs= 'cuda', verbose='error')
+   
     # Resample the data.
     if sampling_frequency % 2 == 0:
         resampling_frequency = 100
@@ -86,7 +86,7 @@ def bandpassing(data, sampling_frequency, device):
     low = passband[0]/int(sampling_frequency)
     high = passband[1]/int(sampling_frequency)
 
-    bandpass = julius.BandPassFilter(low, high)
+    bandpass = julius.BandPassFilter(low, high,fft= False)
     bandpass = bandpass.to(device)
     data = bandpass(data)
     
@@ -96,32 +96,37 @@ def bandpassing_fft(config,data, sampling_frequency, device):
     # Define the bandpass frequencies.
     passband = [0.1, 30.0]
 
-
+    print('i am in bandpass')
     # Calculate the FFT of the EEG-like signal
     eeg_fft = fft.fft(data)
-
+    print(eeg_fft.shape)
     # Define the bandpass filter in the frequency domain
-    nyquist_freq = sampling_frequency/ 2
+    #nyquist_freq = sampling_frequency/ 2
     num_samples =  len(eeg_fft[1])
+    print( num_samples)
 
     # Calculate the frequency values corresponding to the FFT components on the CPU
     freqs = np.fft.fftfreq(num_samples, 1.0 / sampling_frequency)
     freqs = torch.tensor(freqs, device=device)
-
+    print(freqs.shape)
     mask = (freqs >= passband[0]) & (freqs <= passband[1])
-
+    print(mask.shape)
     # Apply the filter
 
     eeg_fft_filtered = eeg_fft * mask
+    print(eeg_fft_filtered.shape)
 
     # Calculate the inverse FFT to convert the filtered signal back to the time domain
     eeg_filtered = fft.ifft(eeg_fft_filtered)
-
-    #print(eeg_fft_filtered)
-    return  eeg_filtered.real
+    print(eeg_filtered.shape)
+    eeg_filtered_real= eeg_filtered.real
+    print(eeg_filtered_real.shape)
+    print('end of bandpass')
+    return  eeg_filtered_real
 #%%
 def rescale_data(data):
     # Scale the data to the interval [-1, 1].
+    
     min_value = torch.min(data)
     max_value = torch.max(data)
     if min_value != max_value:

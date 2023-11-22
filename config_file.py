@@ -3,6 +3,8 @@ import ml_collections
 def get_config():
     """Returns the ViT-B/16 configuration."""
     config = ml_collections.ConfigDict()
+    config.name = "physionet"
+
     config.patches = ml_collections.ConfigDict({'size': 1000})
     config.hidden_size = 768
     config.input_length = 30000
@@ -15,10 +17,10 @@ def get_config():
 
     config.in_channels = 2
     
-    config.train_batch_size = 2
-    config.eval_batch_size = 2
+    config.train_batch_size = 10
+    config.eval_batch_size = 10
     config.learning_rate = 1e-4 
-    config.num_steps = 20000
+    config.num_steps = 10000
     config.eval_every = 500
     config.transformer = ml_collections.ConfigDict()
     config.transformer.mlp_dim = 3072

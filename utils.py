@@ -2,6 +2,8 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from pathlib import Path
+
 
 #%%
 # Libraries for the first entery
@@ -10,12 +12,37 @@ import numpy as np, os
 from sklearn.model_selection import train_test_split
 import torch
 from torch.utils.data import DataLoader, WeightedRandomSampler
+from datetime import timedelta
+
 import random
 from models import VisionTransformer
 import math
 from torch.optim.lr_scheduler import LambdaLR
 from tqdm import tqdm
 from dataset_loader import *
+import logging
+from torch.utils.tensorboard import SummaryWriter
+
+logger = logging.getLogger(__name__)
+
+local_rank = -1
+
+    # Setup CUDA, GPU & distributed training
+if local_rank == -1:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    n_gpu = torch.cuda.device_count()
+else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
+    torch.cuda.set_device(local_rank)
+    device = torch.device("cuda", local_rank)
+    torch.distributed.init_process_group(backend='nccl', timeout=timedelta(minutes=60))
+    n_gpu = 1
+
+ # Setup logging
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+                        datefmt='%m/%d/%Y %H:%M:%S',
+                        level=logging.INFO if local_rank in [-1, 0] else logging.WARN)
+logger.warning("Process rank: %s, device: %s, n_gpu: %s, distributed training: %s" %
+                   (local_rank, device, n_gpu, bool(local_rank != -1)))
 
 #%%
 class WarmupLinearSchedule(LambdaLR):
@@ -130,6 +157,10 @@ def setup(config, device):
     model = VisionTransformer(config, zero_head=True)
     model.to(device)
     num_params = count_parameters(model)
+    
+    logger.info("{}".format(config))
+    logger.info("Training parameters %s", config)
+    logger.info("Total Parameter: \t%2.1fM" % num_params)
     #print(model)
     #print(num_params)
     return model
@@ -137,18 +168,25 @@ def setup(config, device):
 # Save your trained model.
 def save_challenge_model(model_folder, outcome_model, epoch): #, imputer, outcome_model, cpc_model):
     torch.save({'model': outcome_model, 'epoch': epoch,}, os.path.join(model_folder, 'model.pt'))
+    logger.info("Saved model checkpoint to [DIR: %s]", model_folder)
 
-def load_challenge_models(model_folder, verbose):
+def load_challenge_models(model_folder):
     filename = os.path.join(model_folder, 'model.pt')
     state = torch.load(filename)
     model = state['model']
-    return model 
+    step  = state['epoch']
+    return model, step
 
 #%%
-def valid(model, val_loader, local_rank, device):
+def valid(config,model, writer, val_loader,global_step, local_rank, device):
     # Validation!
 
     eval_losses = AverageMeter()
+
+    logger.info("***** Running Validation *****")
+    logger.info("  Num steps = %d", len(val_loader))
+    logger.info("  Batch size = %d", config.eval_batch_size)
+
 
     model.eval()
     all_preds, all_label = [], []
@@ -201,11 +239,40 @@ def valid(model, val_loader, local_rank, device):
 
     print("precision: ", precision)
 
+    logger.info("\n")
+    logger.info("Validation Results")
+    logger.info("Global Steps: %d" % global_step)
+    logger.info("Valid Loss: %2.5f" % eval_losses.avg)
+    logger.info("Valid Accuracy: %2.5f" % precision)
+
+    writer.add_scalar("test/precision", scalar_value=precision, global_step=global_step)
+
     return precision #accuracy
 
 
 #%%
 def train(config, model, data_folder, model_folder, device, local_rank, n_gpu):
+    
+    if local_rank in [-1, 0]:
+        os.makedirs(model_folder, exist_ok=True)
+        writer = SummaryWriter(log_dir=os.path.join("logs", config.name))
+
+    
+    model_dir= Path(model_folder)
+    model_path= model_dir/'model.pt'
+
+    if model_path.exists():
+        model, step = load_challenge_models(model_folder)
+        #state = torch.load(str(model_path))
+        #step = state['epoch']
+        #model.load_state_dict(state['model'])
+        print('Restored model, epoch {}'.format(step))
+    else:
+        step = 1
+        
+    best_model = os.path.join(model_folder, 'best_model')
+
+    os.makedirs(best_model, exist_ok=True)
 
     num_steps = config.num_steps
     eval_every = config.eval_every
@@ -214,14 +281,13 @@ def train(config, model, data_folder, model_folder, device, local_rank, n_gpu):
     train_batch_size = config.train_batch_size 
     
     """ Train the model """
-    name = "physionet"
     gradient_accumulation_steps = 1
     decay_type = "cosine" #choices=["cosine", "linear"]
     warmup_steps = 500 
     max_grad_norm = 1.0
 
-    if local_rank in [-1, 0]:
-        os.makedirs(model_folder, exist_ok=True)
+    #if local_rank in [-1, 0]:
+     #   os.makedirs(model_folder, exist_ok=True)
 
     train_batch_size = train_batch_size // gradient_accumulation_steps
 
@@ -278,6 +344,15 @@ def train(config, model, data_folder, model_folder, device, local_rank, n_gpu):
 
 
     # Train!
+
+    logger.info("***** Running training *****")
+    logger.info("  Total optimization steps = %d", num_steps)
+    logger.info("  Instantaneous batch size per GPU = %d", train_batch_size)
+    logger.info("  Total train batch size (w. parallel, distributed & accumulation) = %d",
+                train_batch_size * gradient_accumulation_steps * (
+                    torch.distributed.get_world_size() if local_rank != -1 else 1))
+    logger.info("  Gradient Accumulation steps = %d", gradient_accumulation_steps)
+
     model.zero_grad()
     seed = 42
     set_seed(seed=seed, n_gpu=n_gpu)  # Added here for reproducibility (even between python 2 and 3)
@@ -316,11 +391,22 @@ def train(config, model, data_folder, model_folder, device, local_rank, n_gpu):
                     "Training (%d / %d Steps) (loss=%2.5f) (loss_class=%2.5f) (loss_regress=%2.5f)" % (global_step, t_total, losses.val, loss1, loss2)
                 )
 
+ #               if global_step % eval_every == 0 and local_rank in [-1, 0]:
+ #                   accuracy = valid(model, val_loader, local_rank, device)
+ #                   if best_acc < accuracy:
+ #                       #save_challenge_model(args, model)
+ #                       save_challenge_model(model_folder, model, global_step)
+ #                      best_acc = accuracy
+ #                  model.train()
+                
+                if local_rank in [-1, 0]:
+                    writer.add_scalar("train/loss", scalar_value=losses.val, global_step=global_step)
+                    writer.add_scalar("train/lr", scalar_value=scheduler.get_lr()[0], global_step=global_step)
                 if global_step % eval_every == 0 and local_rank in [-1, 0]:
-                    accuracy = valid(model, val_loader, local_rank, device)
+                    accuracy = valid(config,model, writer, val_loader,global_step, local_rank, device)
+
                     if best_acc < accuracy:
-                        #save_challenge_model(args, model)
-                        save_challenge_model(model_folder, model, global_step)
+                        save_challenge_model(best_model, model, global_step)
                         best_acc = accuracy
                     model.train()
 
@@ -329,3 +415,12 @@ def train(config, model, data_folder, model_folder, device, local_rank, n_gpu):
         losses.reset()
         if global_step % t_total == 0:
             break
+
+    if local_rank in [-1, 0]:
+        writer.close()
+
+
+
+    save_challenge_model(model_folder, model, global_step)
+    logger.info("Best Accuracy: \t%f" % best_acc)
+    logger.info("End Training!")
