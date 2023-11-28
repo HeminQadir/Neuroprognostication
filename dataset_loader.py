@@ -95,7 +95,8 @@ def load_data(config, data_folder, patient_id, device, train=True):
     #print(patient_features)
 
     # Load EEG recording.    
-    eeg_channels = ['F3', 'P3', 'F4', 'P4']  #['Fp1', 'F3', 'C3', 'P3', 'F7', 'T3', 'T5', 'O1', 'Fz', 'Cz', 'Pz', 'Fp2', 'F4', 'C4', 'P4', 'F8', 'T4', 'T6', 'O2'] # #['F3', 'P3', 'F4', 'P4'] #
+    eeg_channels = ['T3', 'T4', 'T5', 'T6', 'F7', 'F8', 'Fp1', 'Fp2', 'O1', 'O2']  #['Fp1', 'F3', 'C3', 'P3', 'F7', 'T3', 'T5', 'O1', 'Fz', 'Cz', 'Pz', 'Fp2', 'F4', 'C4', 'P4', 'F8', 'T4', 'T6', 'O2'] # #['F3', 'P3', 'F4', 'P4'] 
+    S            = [' 0', ' 1', ' 2', ' 3', ' 4', ' 5', '  6', '  7', ' 8', ' 9']
     group = 'EEG'
 
     
@@ -127,7 +128,6 @@ def load_data(config, data_folder, patient_id, device, train=True):
                         data, channels = reduce_channels(data, channels, eeg_channels)
                         data, resampling_frequency = resampling(config, data, sampling_frequency)
                     
-                       
                         #start_time = time.time()
                         #data , resampling_frequency = preprocess_data(data, sampling_frequency)
                         #data = bandpassing_fft(config,data, sampling_frequency, device)
@@ -144,14 +144,24 @@ def load_data(config, data_folder, patient_id, device, train=True):
                         
                         bipolar_data = torch.zeros((config.in_channels, data.shape[1]), dtype=torch.float32)
                         bipolar_data = bipolar_data.to(device)
-                        bipolar_data[0,:] = data[0,:] - data[1,:]   # Convert to bipolar montage: F3-P3 and F4-P4 
-                        bipolar_data[1,:] = data[2,:] - data[3,:]
-
+                        #bipolar_data[0,:] = data[0,:] - data[1,:]   # Convert to bipolar montage: F3-P3 and F4-P4 
+                        #bipolar_data[1,:] = data[2,:] - data[3,:]
+                        bipolar_data[0,:] = data[0,:] - data[1,:]    # T3 - T4
+                        bipolar_data[1,:] = data[2,:] - data[3,:]    # T5 - T6
+                        bipolar_data[2,:] = data[4,:] - data[5,:]    # F7 - F8
+                        bipolar_data[3,:] = data[6,:] - data[7,:]    # Fp1 - Fp2
+                        bipolar_data[4,:] = data[0,:] - data[8,:]    # T3 - O1
+                        bipolar_data[5,:] = data[1,:] - data[9,:]    # T4 - O2 
+                        bipolar_data[6,:] = data[4,:] - data[8,:]    # F7 - O1
+                        bipolar_data[7,:] = data[5,:] - data[9,:]    # F8 - O2
+                        bipolar_data[8,:] = data[6,:] - data[8,:]    # Fp1 - O1
+                        bipolar_data[9,:] = data[7,:] - data[9,:]    # Fp2 - O2
 
                         #data = rescale_data(data)
-                        bipolar_data[0,:] = rescale_data(bipolar_data[0,:])
-                        bipolar_data[1,:] = rescale_data(bipolar_data[1,:])
-
+                        for k in range(0, config.in_channels):
+                            bipolar_data[k,:] = rescale_data(bipolar_data[k,:])
+                            # print(bipolar_data[k,:].max())
+                            # print(bipolar_data[k,:].min())
  
 
                         break

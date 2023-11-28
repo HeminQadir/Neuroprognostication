@@ -15,7 +15,7 @@ def get_config():
     config.num_classes = 2
     config.resampling_frequency  = 100
 
-    config.in_channels = 2
+    config.in_channels = 10
     
     config.train_batch_size = 10
     config.eval_batch_size = 10
