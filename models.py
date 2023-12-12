@@ -138,7 +138,7 @@ class Embeddings(nn.Module):
         #torch.Size([10, 512, 12])
 
         #n_patches = 24 #self.in_channels*(int((input_length - patch_size) / patch_size ) + 1)
-        no_tokens = config.in_channels * 12 + 1
+        no_tokens = config.in_channels * 27 + 1
         #print(n_patches)
         self.position_embeddings = nn.Parameter(torch.zeros(1, no_tokens, config.hidden_size))
 
@@ -275,7 +275,7 @@ class VisionTransformer(nn.Module):
     def __init__(self, config, zero_head=False, vis=False):
         super(VisionTransformer, self).__init__()
 
-        no_tokens = config.in_channels * 12 + 1
+        no_tokens = config.in_channels * 27 + 1
         self.num_classes = config.num_classes
         self.zero_head = zero_head
         self.classifier = config.classifier
@@ -355,8 +355,8 @@ class FeatureExtractor(nn.Module):
         self.conv_layers = nn.ModuleList([
             GroupNormConvLayer(in_channels, out_channels, 10, 5, groups=in_channels),
             NoLayerNormConvLayer(out_channels, out_channels, 5, 3, groups=in_channels),
-            NoLayerNormConvLayer(out_channels, out_channels, 5, 3, groups=in_channels),
-            NoLayerNormConvLayer(out_channels, out_channels, 5, 3, groups=in_channels),
+            NoLayerNormConvLayer(out_channels, out_channels, 5, 2, groups=in_channels),
+            NoLayerNormConvLayer(out_channels, out_channels, 5, 2, groups=in_channels),
             NoLayerNormConvLayer(out_channels, out_channels, 5, 2, groups=in_channels),
             NoLayerNormConvLayer(out_channels, out_channels, 3, 3, groups=in_channels),
             NoLayerNormConvLayer(out_channels, out_channels, 3, 3, groups=in_channels)
