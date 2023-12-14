@@ -138,7 +138,7 @@ class Embeddings(nn.Module):
         #torch.Size([10, 512, 12])
 
         #n_patches = 24 #self.in_channels*(int((input_length - patch_size) / patch_size ) + 1)
-        no_tokens = config.in_channels * 12 + 1
+        no_tokens = config.in_channels * 27 + 1
         #print(n_patches)
         self.position_embeddings = nn.Parameter(torch.zeros(1, no_tokens, config.hidden_size))
 
@@ -275,13 +275,13 @@ class VisionTransformer(nn.Module):
     def __init__(self, config, zero_head=False, vis=False):
         super(VisionTransformer, self).__init__()
 
-        no_tokens = config.in_channels * 12 + 1
+        no_tokens = config.in_channels * 27 + 1
         self.num_classes = config.num_classes
         self.zero_head = zero_head
         self.classifier = config.classifier
         self.transformer = Transformer(config, vis)
         self.head = Linear(config.hidden_size*no_tokens, self.num_classes)
-        self.regress = Linear(config.hidden_size*no_tokens, 1)
+        #self.regress = Linear(config.hidden_size*no_tokens, 1)
 
     def forward(self, x, labels=None, cpcs=None):
         #print(x.shape)
@@ -294,7 +294,7 @@ class VisionTransformer(nn.Module):
         x = x.flatten(1)
         #print(x.shape)
         logits = self.head(x) #[:, 0])
-        regression = self.regress(x) #[:, 0])
+        #regression = self.regress(x) #[:, 0])
         #torch.Size([1, 1000])
         #print(logits.shape)
         #print("I am output: ", logits)
@@ -306,14 +306,14 @@ class VisionTransformer(nn.Module):
             #print(labels.view(-1))
             #print(logits.view(-1, self.num_classes).shape)
             loss_fct = CrossEntropyLoss()
-            l2_loss = MSELoss()
+           # l2_loss = MSELoss()
             loss1 = loss_fct(logits.view(-1, self.num_classes), labels.view(-1))
-            loss2 = l2_loss(regression.squeeze(1), cpcs)
+            #loss2 = l2_loss(regression.squeeze(1), cpcs)
             #loss = loss1 + loss2
             #print(loss)
-            return loss1, loss2 
+            return loss1 #loss2 
         else:
-            return logits, regression, attn_weights
+            return logits, attn_weights
 
 
 #%%
@@ -355,8 +355,8 @@ class FeatureExtractor(nn.Module):
         self.conv_layers = nn.ModuleList([
             GroupNormConvLayer(in_channels, out_channels, 10, 5, groups=in_channels),
             NoLayerNormConvLayer(out_channels, out_channels, 5, 3, groups=in_channels),
-            NoLayerNormConvLayer(out_channels, out_channels, 5, 3, groups=in_channels),
-            NoLayerNormConvLayer(out_channels, out_channels, 5, 3, groups=in_channels),
+            NoLayerNormConvLayer(out_channels, out_channels, 5, 2, groups=in_channels),
+            NoLayerNormConvLayer(out_channels, out_channels, 5, 2, groups=in_channels),
             NoLayerNormConvLayer(out_channels, out_channels, 5, 2, groups=in_channels),
             NoLayerNormConvLayer(out_channels, out_channels, 3, 3, groups=in_channels),
             NoLayerNormConvLayer(out_channels, out_channels, 3, 3, groups=in_channels)

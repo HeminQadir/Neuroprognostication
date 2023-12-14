@@ -20,12 +20,12 @@ def get_config():
     config.train_batch_size = 10
     config.eval_batch_size = 10
     config.learning_rate = 1e-4 
-    config.num_steps = 100000
+    config.num_steps = 40000
     config.eval_every = 500
     config.transformer = ml_collections.ConfigDict()
     config.transformer.mlp_dim = 3072
-    config.transformer.num_heads = 2
-    config.transformer.num_layers = 2
+    config.transformer.num_heads = 8
+    config.transformer.num_layers = 8
     config.transformer.attention_dropout_rate = 0.1
     config.transformer.dropout_rate = 0.1
     config.classifier = 'token'

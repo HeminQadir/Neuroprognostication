@@ -15,8 +15,8 @@ def preprocess_data(data, sampling_frequency):
     data = np.asarray(data, dtype=np.float64)
 
     # If the utility frequency is between bandpass frequencies, then apply a notch filter.
-    #if utility_frequency is not None and passband[0] <= utility_frequency <= passband[1]:
-        #data = mne.filter.notch_filter(data, sampling_frequency, utility_frequency, n_jobs= 'cuda', verbose='error')
+    # if utility_frequency is not None and passband[0] <= utility_frequency <= passband[1]:
+    # data = mne.filter.notch_filter(data, sampling_frequency, utility_frequency, n_jobs= 'cuda', verbose='error')
 
     # Apply a bandpass filter.
     data = mne.filter.filter_data(data, sampling_frequency, passband[0], passband[1], n_jobs= 'cuda', verbose='error')

@@ -208,7 +208,7 @@ def valid(config,model, writer, val_loader,global_step, local_rank, device):
         x, y, cpcs = data["input"].to(device), data["outcome"].to(device), data["cpc"].to(device)
     
         with torch.no_grad():
-            logits, regression, _ = model(x) #[0]   #[0] not needed if we have only one output
+            logits, _ = model(x) #[0]   #[0] not needed if we have only one output
 
             eval_loss = loss_fct(logits, y)
             eval_losses.update(eval_loss.item())
@@ -369,9 +369,9 @@ def train(config, model, data_folder, model_folder, device, local_rank, n_gpu):
             data = batch
             x, y, cpcs = data["input"].to(device), data["outcome"].to(device), data["cpc"].to(device)
             #print("I am label: ", y)
-            loss1, loss2 = model(x, y, cpcs)
+            loss1 = model(x, y, cpcs)
 
-            loss = loss1 + loss2 
+            loss = loss1 #+ loss2 
 
             if gradient_accumulation_steps > 1:
                 loss = loss / gradient_accumulation_steps
@@ -388,7 +388,7 @@ def train(config, model, data_folder, model_folder, device, local_rank, n_gpu):
                 global_step += 1
 
                 epoch_iterator.set_description(
-                    "Training (%d / %d Steps) (loss=%2.5f) (loss_class=%2.5f) (loss_regress=%2.5f)" % (global_step, t_total, losses.val, loss1, loss2)
+                    "Training (%d / %d Steps) (loss=%2.5f) (loss_class=%2.5f) " % (global_step, t_total, losses.val, loss1)
                 )
 
  #               if global_step % eval_every == 0 and local_rank in [-1, 0]:
