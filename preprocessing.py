@@ -1,9 +1,12 @@
 import numpy as np
+import os
 import mne
 import torch 
 import torch.fft as fft
 import julius
 from scipy import signal
+from helper_code import *
+
 
 #%%
 # Preprocess data.
@@ -65,7 +68,83 @@ def segment_eeg_signal(eeg_signal, window_size, step_size, Fs):
         segments.append(window)
     return segments
 
+def load_recording_header(record_name, check_values=True):
+    # Allow either the record name or the header filename.
+    root, ext = os.path.splitext(record_name)
+    if ext=='':
+        header_file = record_name + '.hea'
+    else:
+        header_file = record_name
 
+    # Load the header file.
+    if not os.path.isfile(header_file):
+        raise FileNotFoundError('{} recording not found.'.format(record_name))
+
+    with open(header_file, 'r') as f:
+        header = [l.strip() for l in f.readlines() if l.strip()]
+
+    # Parse the header file.
+    record_name = None
+    sampling_frequency = None
+    length = None 
+
+    for i, l in enumerate(header):
+        arrs = [arr.strip() for arr in l.split(' ')]
+        # Parse the record line.
+        if i==0:
+            record_name = arrs[0]
+            sampling_frequency = float(arrs[2])
+            length = int(arrs[3])
+
+    return sampling_frequency, length
+
+def processrecord(config,recording_location,eeg_channels,device):
+            
+    if os.path.exists(recording_location + '.hea'):
+       sampling_frequency, length = load_recording_header(recording_location, check_values=True)  # we created to read only the header and get the fs
+     
+       five_min_recording = sampling_frequency * 60 * config.window_size
+
+                # checking the length of the hour recording 
+       if length >= five_min_recording:
+          data, channels, sampling_frequency = load_recording_data(recording_location, check_values=True)
+          data = torch.tensor(data, dtype=torch.float32)
+          data = data.to(device)
+
+                    # checking if we have all the channels 
+          if all(channel in channels for channel in eeg_channels):
+             data, channels = reduce_channels(data, channels, eeg_channels)
+             data, resampling_frequency = resampling(config, data, sampling_frequency)
+                    
+                        #start_time = time.time()
+                   
+
+             data = bandpassing(data, resampling_frequency , device)
+
+                        #end_time = time.time()
+                        #elapsed_time = end_time - start_time
+                        #print(f"Elapsed time: {elapsed_time} seconds")
+
+                      
+                        
+             bipolar_data = torch.zeros((config.in_channels, data.shape[1]), dtype=torch.float32)
+             bipolar_data = bipolar_data.to(device)
+             bipolar_data[0,:] = data[0,:] - data[1,:]   # Convert to bipolar montage: F3-P3 and F4-P4 
+             bipolar_data[1,:] = data[2,:] - data[3,:]
+
+                        #data = rescale_data(data)
+             for k in range(0, config.in_channels):
+                bipolar_data[k,:] = rescale_data(bipolar_data[k,:])
+                            # print(bipolar_data[k,:].max())
+                            # print(bipolar_data[k,:].min())
+                            
+             else:
+                        pass
+          else:
+                    pass
+    else: 
+                pass
+    return bipolar_data
 #%%
 def resampling(config, data, sampling_frequency):
 
