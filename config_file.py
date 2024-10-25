@@ -11,14 +11,14 @@ def get_config():
 
     config.window_size = 5  # in munites
     
-    config.step_size = 3     # in munites
+    config.step_size = 2     # in munites
     config.num_classes = 2
     config.resampling_frequency  = 100
 
-    config.in_channels = 2
+    config.in_channels = 15    # Bipolar channels
     
-    config.train_batch_size = 10
-    config.eval_batch_size = 10
+    config.train_batch_size = 5
+    config.eval_batch_size = 5
     config.learning_rate = 1e-4 
     config.num_steps = 40000
     config.eval_every = 500

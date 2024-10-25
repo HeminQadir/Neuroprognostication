@@ -48,19 +48,19 @@ def run_model(model_folder, data_folder, output_folder, allow_failures, verbose)
 
         # Allow or disallow the model(s) to fail on parts of the data; this can be helpful for debugging.
         try:
-            outcome_binary, outcome_probability, cpc = run_challenge_models(models, data_folder, patient_id, verbose) ### Teams: Implement this function!!!
+            outcome_binary, outcome_probability = run_challenge_models(models, data_folder, patient_id, verbose) ### Teams: Implement this function!!!
         except:
             if allow_failures:
                 if verbose >= 2:
                     print('... failed.')
-                outcome_binary, outcome_probability, cpc = float('nan'), float('nan'), float('nan')
+                outcome_binary, outcome_probability= float('nan'), float('nan')
             else:
                 raise
 
         # Save Challenge outputs.
         os.makedirs(os.path.join(output_folder, patient_id), exist_ok=True)
         output_file = os.path.join(output_folder, patient_id, patient_id + '.txt')
-        save_challenge_outputs(output_file, patient_id, outcome_binary, outcome_probability, cpc)
+        save_challenge_outputs(output_file, patient_id, outcome_binary, outcome_probability)
 
     if verbose >= 1:
         print('Done.')

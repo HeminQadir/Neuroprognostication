@@ -95,8 +95,10 @@ def load_data(config, data_folder, patient_id, device, train=True):
     #print(patient_features)
 
     # Load EEG recording.    
-    eeg_channels = ['F3', 'P3', 'F4', 'P4'] #['T3', 'T4', 'T5', 'T6', 'F7', 'F8', 'Fp1', 'Fp2', 'O1', 'O2']  #['Fp1', 'F3', 'C3', 'P3', 'F7', 'T3', 'T5', 'O1', 'Fz', 'Cz', 'Pz', 'Fp2', 'F4', 'C4', 'P4', 'F8', 'T4', 'T6', 'O2'] #  
+    #eeg_channels = ['F3', 'P3', 'F4', 'P4'] #['T3', 'T4', 'T5', 'T6', 'F7', 'F8', 'Fp1', 'Fp2', 'O1', 'O2']  #['Fp1', 'F3', 'C3', 'P3', 'F7', 'T3', 'T5', 'O1', 'Fz', 'Cz', 'Pz', 'Fp2', 'F4', 'C4', 'P4', 'F8', 'T4', 'T6', 'O2'] #  
    # S            = [' 0', ' 1', ' 2', ' 3', ' 4', ' 5', '  6', '  7', ' 8', ' 9']
+    eeg_channels = ['Fp1', 'F3', 'C3', 'P3', 'F7', 'T3', 'T5', 'O1', 'Fz', 'Cz', 'Pz', 'Fp2', 'F4', 'C4', 'P4', 'F8', 'T4', 'T6', 'O2'] #  
+   # S            = [' 0', ' 1', ' 2', ' 3', ' 4', ' 5', '  6', '  7', ' 8', ' 9'  '10'  '11'  '12'   '13'  '14'  '15'  '16'  '17'  '18']
     group = 'EEG'
 
     
@@ -144,20 +146,38 @@ def load_data(config, data_folder, patient_id, device, train=True):
                         
                         bipolar_data = torch.zeros((config.in_channels, data.shape[1]), dtype=torch.float32)
                         bipolar_data = bipolar_data.to(device)
-                        bipolar_data[0,:] = data[0,:] - data[1,:]   # Convert to bipolar montage: F3-P3 and F4-P4 
-                        bipolar_data[1,:] = data[2,:] - data[3,:]
+                        #bipolar_data[0,:] = data[0,:] - data[1,:]   # Convert to bipolar montage: F3-P3 and F4-P4 
+                        #bipolar_data[1,:] = data[2,:] - data[3,:]
 
-                        #bipolar_data[0,:] = data[0,:] - data[1,:]    # T3 - T4
-                        #bipolar_data[1,:] = data[2,:] - data[3,:]    # T5 - T6
-                        #bipolar_data[2,:] = data[4,:] - data[5,:]    # F7 - F8
-                        #bipolar_data[3,:] = data[6,:] - data[7,:]    # Fp1 - Fp2
-                        #bipolar_data[4,:] = data[0,:] - data[8,:]    # T3 - O1
-                        #bipolar_data[5,:] = data[1,:] - data[9,:]    # T4 - O2 
-                        #bipolar_data[6,:] = data[4,:] - data[8,:]    # F7 - O1
-                        #bipolar_data[7,:] = data[5,:] - data[9,:]    # F8 - O2
-                        #bipolar_data[8,:] = data[6,:] - data[8,:]    # Fp1 - O1
-                        #bipolar_data[9,:] = data[7,:] - data[9,:]    # Fp2 - O2
+                        bipolar_data[0,:] = data[0,:] - data[1,:]   # fp1-f3
+                        #bipolar_data[1,:] = data[1,:] - data[2,:]   #  f3-c3
+                        #bipolar_data[2,:] = data[2,:] - data[3,:]    #c3-p3
+                        bipolar_data[1,:] = data[3,:] - data[7,:]    # p3-o1
 
+                        #bipolar_data[2,:] = data[4,:] - data[5,:]     #f7-t3
+                        #bipolar_data[3,:] = data[5,:] - data[6,:]     #t3-t5
+                        bipolar_data[2,:] = data[4,:] - data[6,:]     #t3-t5
+
+                        bipolar_data[3,:] = data[6,:] - data[7,:]     #t5-o1
+
+                        #bipolar_data[7,:] = data[8,:] - data[9,:]   # fz-cz
+                        #bipolar_data[8,:] = data[9,:] - data[10,:]  #cz-pz
+                        bipolar_data[4,:] = data[8,:] - data[10,:]  #fz-pz
+
+                        bipolar_data[5,:] = data[11,:] - data[12,:]   #fp2-f4
+                        bipolar_data[6,:] = data[12,:] - data[13,:]  #f4-c4
+                        bipolar_data[7,:] = data[13,:] - data[14,:]  #c4-p4
+                        bipolar_data[8,:] = data[14,:] - data[18,:]  #p4-o2
+                        #bipolar_data[10,:] = data[15,:] - data[16,:]  #f8-t4
+                        #bipolar_data[11,:] = data[16,:] - data[17,:]   #t4-t6
+                        bipolar_data[9,:] = data[15,:] - data[17,:]   #t4-t6
+
+                        bipolar_data[10,:] = data[0,:] - data[4,:]   #fp1-f7
+                        bipolar_data[11,:] = data[11,:] - data[15,:] #fp2-f8
+                        bipolar_data[12,:] = data[1,:] - data[3,:]   #  f3-p3
+                        bipolar_data[13,:] = data[12,:] - data[14,:] #f4 -p4
+                        bipolar_data[14,:] = data[17,:] - data[18,:] #t6-o2
+                        
                         #data = rescale_data(data)
                         for k in range(0, config.in_channels):
                             bipolar_data[k,:] = rescale_data(bipolar_data[k,:])

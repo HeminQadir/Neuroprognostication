@@ -256,11 +256,11 @@ def convert_hours_minutes_seconds_to_seconds(hours, minutes, seconds):
 ### Challenge label and output I/O functions
 
 # Save the Challenge outputs for one file.
-def save_challenge_outputs(filename, patient_id, outcome, outcome_probability, cpc):
+def save_challenge_outputs(filename, patient_id, outcome, outcome_probability):
     # Sanitize values, e.g., in case they are a singleton array.
     outcome = sanitize_boolean_value(outcome)
     outcome_probability = sanitize_scalar_value(outcome_probability)
-    cpc = sanitize_scalar_value(cpc)
+    #cpc = sanitize_scalar_value(cpc)
 
     # Format Challenge outputs.
     patient_string = 'Patient: {}'.format(patient_id)
@@ -270,9 +270,9 @@ def save_challenge_outputs(filename, patient_id, outcome, outcome_probability, c
         outcome = 'Poor'
     outcome_string = 'Outcome: {}'.format(outcome)
     outcome_probability_string = 'Outcome Probability: {:.3f}'.format(outcome_probability)
-    cpc_string = 'CPC: {:.3f}'.format(cast_int_if_int_else_float(cpc))
+    #cpc_string = 'CPC: {:.3f}'.format(cast_int_if_int_else_float(cpc))
     output_string = patient_string + '\n' + \
-        outcome_string + '\n' + outcome_probability_string + '\n' + cpc_string + '\n'
+        outcome_string + '\n' + outcome_probability_string + '\n' #+ cpc_string + '\n'
 
     # Write the Challenge outputs.
     if filename is not None:

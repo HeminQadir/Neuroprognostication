@@ -29,11 +29,11 @@ local_rank = -1
 
     # Setup CUDA, GPU & distributed training
 if local_rank == -1:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     n_gpu = torch.cuda.device_count()
 else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
     torch.cuda.set_device(local_rank)
-    device = torch.device("cuda", local_rank)
+    device = torch.device("cuda:1", local_rank)
     torch.distributed.init_process_group(backend='nccl', timeout=timedelta(minutes=60))
     n_gpu = 1
 
@@ -208,7 +208,7 @@ def valid(config,model, writer, val_loader,global_step, local_rank, device):
         x, y, cpcs = data["input"].to(device), data["outcome"].to(device), data["cpc"].to(device)
     
         with torch.no_grad():
-            logits, _ = model(x) #[0]   #[0] not needed if we have only one output
+            logits = model(x) #[0]   #[0] not needed if we have only one output
 
             eval_loss = loss_fct(logits, y)
             eval_losses.update(eval_loss.item())
@@ -365,13 +365,17 @@ def train(config, model, data_folder, model_folder, device, local_rank, n_gpu):
                               bar_format="{l_bar}{r_bar}",
                               dynamic_ncols=True,
                               disable=local_rank not in [-1, 0])
+        
+        loss_fct = torch.nn.CrossEntropyLoss()
+
         for step, batch in enumerate(epoch_iterator):
             data = batch
             x, y, cpcs = data["input"].to(device), data["outcome"].to(device), data["cpc"].to(device)
             #print("I am label: ", y)
             loss1 = model(x, y, cpcs)
 
-            loss = loss1 #+ loss2 
+            loss = loss1
+
 
             if gradient_accumulation_steps > 1:
                 loss = loss / gradient_accumulation_steps
@@ -388,7 +392,7 @@ def train(config, model, data_folder, model_folder, device, local_rank, n_gpu):
                 global_step += 1
 
                 epoch_iterator.set_description(
-                    "Training (%d / %d Steps) (loss=%2.5f) (loss_class=%2.5f) " % (global_step, t_total, losses.val, loss1)
+                    "Training (%d / %d Steps) (loss=%2.5f) (loss_class=%2.5f) " % (global_step, t_total, losses.val, loss)
                 )
 
  #               if global_step % eval_every == 0 and local_rank in [-1, 0]:

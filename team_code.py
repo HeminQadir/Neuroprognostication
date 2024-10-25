@@ -23,11 +23,11 @@ def train_challenge_model(data_folder, model_folder, verbose=2):
 
     # Setup CUDA, GPU & distributed training
     if local_rank == -1:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
         n_gpu = torch.cuda.device_count()
     else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
         torch.cuda.set_device(local_rank)
-        device = torch.device("cuda", local_rank)
+        device = torch.device("cuda:1", local_rank)
         torch.distributed.init_process_group(backend='nccl', timeout=timedelta(minutes=60))
         n_gpu = 1
 
@@ -47,7 +47,7 @@ def train_challenge_model(data_folder, model_folder, verbose=2):
 def run_challenge_models(models, data_folder, patient_id, verbose):
     config =  get_config()
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     x = load_data(config,data_folder, patient_id, device, train=False)
 
     if len(x)>0:
@@ -55,7 +55,7 @@ def run_challenge_models(models, data_folder, patient_id, verbose):
         model, _ = models
         model.eval()
 
-        outputs, pred_cpcs, _ = model(x.unsqueeze(0))
+        outputs= model(x.unsqueeze(0))
         
         outcome_probabilities = F.softmax(outputs[0])
                 
@@ -64,9 +64,9 @@ def run_challenge_models(models, data_folder, patient_id, verbose):
         outcome_probability = outcome_probability.data.cpu().item()
         pred_outcome = pred_outcome.data.cpu().item()
 
-        pred_cpcs = pred_cpcs*5
-        pred_cpcs = pred_cpcs.data.cpu().item()
-        pred_cpcs = np.clip(pred_cpcs, 1, 5)  
+        #pred_cpcs = pred_cpcs*5
+        #pred_cpcs = pred_cpcs.data.cpu().item()
+        #pred_cpcs = np.clip(pred_cpcs, 1, 5)  
 
         #print("="*80)
         #print(pred_outcome)
@@ -75,6 +75,6 @@ def run_challenge_models(models, data_folder, patient_id, verbose):
         #print(outcome_probability)
         
     else:
-        pred_outcome, outcome_probability, pred_cpcs = float(0), float(0), float(0) #float('nan'), float('nan'), float('nan')
+        pred_outcome, outcome_probability = float(0), float(0) #float('nan'), float('nan'), float('nan')
 
-    return pred_outcome, outcome_probability, pred_cpcs
+    return pred_outcome, outcome_probability

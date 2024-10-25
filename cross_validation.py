@@ -2,8 +2,8 @@
 
 from helper_code import *
 import shutil
-data_folder = "/media/jacobo/NewDrive/physionet.org/files/i-care/2.0/training"
-save_folder = "/media/jacobo/NewDrive/physionet.org/files/i-care/2.0/validation"
+data_folder = "/home/naim/downloads/training_data"
+save_folder = "/home/naim/downloads/validationF"
 patient_ids  = os.listdir(data_folder) #"0286"
 
 hospital_A = list() 

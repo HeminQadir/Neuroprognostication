@@ -20,7 +20,6 @@ if __name__ == '__main__':
     # Define the data and model foldes.
     data_folder = sys.argv[1]
     model_folder = sys.argv[2]
-
     # Change the level of verbosity; helpful for debugging.
     if len(sys.argv)==4 and is_integer(sys.argv[3]):
         verbose = int(sys.argv[3])

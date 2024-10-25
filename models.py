@@ -28,6 +28,83 @@ ACT2FN = {"gelu": torch.nn.functional.gelu, "relu": torch.nn.functional.relu, "s
 
 
 #%%
+class CrossAttention(nn.Module):
+    def __init__(self, config, vis):
+        super(CrossAttention, self).__init__()
+        self.vis = vis
+        self.num_attention_heads = config.transformer["num_heads"]
+        self.attention_head_size = int(config.hidden_size / self.num_attention_heads)
+        self.all_head_size = self.num_attention_heads * self.attention_head_size
+
+        self.query = Linear(config.hidden_size, self.all_head_size)
+        self.key = Linear(config.hidden_size, self.all_head_size)
+        self.value = Linear(config.hidden_size, self.all_head_size)
+
+        self.out = Linear(config.hidden_size, config.hidden_size)
+        self.attn_dropout = Dropout(config.transformer["attention_dropout_rate"])
+        self.proj_dropout = Dropout(config.transformer["attention_dropout_rate"])
+
+        self.softmax = Softmax(dim=-1)
+
+    def transpose_for_scores(self, x):
+        new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
+        x = x.view(*new_x_shape)
+        #print('new_x_shape', x.shape)
+        return x.permute(0, 2, 1, 3)
+
+    def forward(self, q_hidden_states, k_hidden_states, v_hidden_states):
+        #print("I am in the Crossattention head")
+        #print(q_hidden_states.shape)
+        #torch.Size([30, 13, 768])
+
+
+        mixed_query_layer = self.query(q_hidden_states)
+        #print(mixed_query_layer.shape)
+        #torch.Size([30, 13, 768])
+
+
+        mixed_key_layer = self.key(k_hidden_states)
+        mixed_value_layer = self.value(v_hidden_states)
+
+        query_layer = self.transpose_for_scores(mixed_query_layer)
+        #print(query_layer.shape)
+        #torch.Size([30, 8, 13, 96])
+
+        key_layer = self.transpose_for_scores(mixed_key_layer)
+        value_layer = self.transpose_for_scores(mixed_value_layer)
+        #print(key_layer.shape)
+        # torch.Size([30, 8, 13, 96])
+
+        #print(value_layer.shape)
+        # torch.Size([30, 8, 13, 96])
+
+        attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+        #print(key_layer.transpose(-1, -2).shape)
+        #torch.Size([30, 8, 96, 13])
+
+        #print(attention_scores.shape)
+        # torch.Size([30, 8, 13, 13])
+
+        attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+        attention_probs = self.softmax(attention_scores)
+        weights = attention_probs if self.vis else None
+        attention_probs = self.attn_dropout(attention_probs)
+
+        context_layer = torch.matmul(attention_probs, value_layer)
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
+        context_layer = context_layer.view(*new_context_layer_shape)
+        attention_output = self.out(context_layer)
+        attention_output = self.proj_dropout(attention_output)
+        #print(attention_output.shape)
+        #torch.Size([30, 13, 768])
+
+        #print("End of the Crossattention head")
+        return attention_output, weights
+
+
+
+#%%
 class Attention(nn.Module):
     def __init__(self, config, vis):
         super(Attention, self).__init__()
@@ -49,28 +126,42 @@ class Attention(nn.Module):
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
         x = x.view(*new_x_shape)
+        #print('new_x_shape', x.shape)
         return x.permute(0, 2, 1, 3)
 
     def forward(self, hidden_states):
         #print("I am in the attention head")
         #print(hidden_states.shape)
-        #torch.Size([10, 25, 768])
+        #torch.Size([30, 13, 768])
+
 
         mixed_query_layer = self.query(hidden_states)
         #print(mixed_query_layer.shape)
-        #torch.Size([10, 25, 768])
+        #torch.Size([30, 13, 768])
+
 
         mixed_key_layer = self.key(hidden_states)
         mixed_value_layer = self.value(hidden_states)
 
         query_layer = self.transpose_for_scores(mixed_query_layer)
         #print(query_layer.shape)
-        #torch.Size([10, 2, 25, 384])
+        #torch.Size([30, 8, 13, 96])
 
         key_layer = self.transpose_for_scores(mixed_key_layer)
         value_layer = self.transpose_for_scores(mixed_value_layer)
+        #print(key_layer.shape)
+        # torch.Size([30, 8, 13, 96])
+
+        #print(value_layer.shape)
+        # torch.Size([30, 8, 13, 96])
 
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+        #print(key_layer.transpose(-1, -2).shape)
+        #torch.Size([30, 8, 96, 13])
+
+        #print(attention_scores.shape)
+        # torch.Size([30, 8, 13, 13])
+
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
         attention_probs = self.softmax(attention_scores)
         weights = attention_probs if self.vis else None
@@ -83,9 +174,11 @@ class Attention(nn.Module):
         attention_output = self.out(context_layer)
         attention_output = self.proj_dropout(attention_output)
         #print(attention_output.shape)
-        #torch.Size([10, 25, 768])
+        #torch.Size([30, 13, 768])
+
         #print("End of the attention head")
         return attention_output, weights
+
 
 
 #%%
@@ -126,6 +219,7 @@ class Embeddings(nn.Module):
         super(Embeddings, self).__init__()
         self.hidden_size = config.hidden_size
         self.in_channels = config.in_channels
+        
         patch_size = config.patches["size"]
 
         # self.patch_embeddings = nn.Conv1d(in_channels=self.in_channels, 
@@ -135,61 +229,82 @@ class Embeddings(nn.Module):
         #                                   groups=self.in_channels)
 
         self.patch_embeddings =  FeatureExtractor(config)
+        #print(self.patch_embeddings)
         #torch.Size([10, 512, 12])
 
         #n_patches = 24 #self.in_channels*(int((input_length - patch_size) / patch_size ) + 1)
-        no_tokens = config.in_channels * 27 + 1
-        #print(n_patches)
-        self.position_embeddings = nn.Parameter(torch.zeros(1, no_tokens, config.hidden_size))
+        no_tokensT =  12 + 1  # 12 tokens for 5 mins
+        no_tokensS =  config.in_channels + 1
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size))
+        #print(n_patches)
+        self.position_embeddings = nn.Parameter(torch.zeros(1, no_tokensT, no_tokensS, config.hidden_size))
+
+        self.cls_tokenT = nn.Parameter(torch.zeros(1, 1, 1, config.hidden_size))
+        self.cls_tokenS = nn.Parameter(torch.zeros(1, 1, 1, config.hidden_size))
         self.dropout = nn.Dropout(config.transformer["dropout_rate"])
 
     def forward(self, x):
         #print("I am in the Embeding Layer")
         #print(x.shape)
         #torch.Size([10, 2, 30000])
-        B = x.shape[0]
-        cls_tokens = self.cls_token.expand(B, -1, -1)
-        #print(cls_tokens.shape)
-        #torch.Size([10, 1, 768])
 
+        B = x.shape[0]
+        cls_tokensT = self.cls_tokenT.expand(B , -1, self.in_channels , -1)   # variation in batch size based on channels for channel independence Biaxial
+        #print(cls_tokensT.shape)
+        #torch.Size([10, 1, 2, 768])
+        
         x = self.patch_embeddings(x)
         #print(x.shape)
-        #torch.Size([10, 1536, 12])
+        #torch.Size([10, 1536, 12])     # B x CD x T
 
         x = x.view(x.shape[0], self.in_channels, self.hidden_size, x.shape[2])
         #print(x.shape)
-        #torch.Size([10, 2, 768, 12])
+        #torch.Size([10, 2, 768, 12])    # B x C x D x T
 
-        x = x.transpose(-2, -3)
+        x = x.transpose(-1, -2)          #B x C x T x D
         #print(x.shape)
-        #torch.Size([10, 768, 2, 12])
+        #torch.Size([10, 2, 12, 768])
+        
+        x = x.transpose(2, 1)          #B x T x C x D
+        #print(x.shape) 
+        #torch.Size([10, 12, 2, 768])
 
-        x = x.flatten(2)
+        x = torch.cat((cls_tokensT, x), dim=1)
         #print(x.shape)
-        #torch.Size([10, 768, 24])
+       #torch.Size([10, 12+1, 2, 768])      #B x T+1 x C x D
+        
+        cls_tokensS = self.cls_tokenS.expand(B , x.shape[1], -1 , -1)   # variation in batch size based on channels for channel independence Biaxial
+        #print(cls_tokensS.shape)
+        #torch.Size([10, 13, 1, 768])
 
-        x = x.transpose(-1, -2)
+        x = torch.cat((cls_tokensS, x), dim=2)
         #print(x.shape)
-        #torch.Size([10, 24, 768])
-
-        x = torch.cat((cls_tokens, x), dim=1)
-        #print(x.shape)
-        #torch.Size([10, 25, 768])
+        #torch.Size([10, 12+1, 2+1, 768])     #B x T+1 x C+1 x D
 
         #embeddings = self.position_embeddings(x)
         k = self.position_embeddings
         #print(k.shape)
-        #torch.Size([1, 25, 768])
+        #torch.Size([1, 13, 3, 768])
 
+        #print("I am here")
         embeddings = x + k
         #print(embeddings.shape)
-        #torch.Size([10, 25, 768])
-        embeddings = self.dropout(embeddings)
+        #torch.Size([10, 13, 3, 768])        # B x T+1 x C+1 x D
+
+        embeddingsS = embeddings.reshape(embeddings.shape[0]*embeddings.shape[1], embeddings.shape[2], embeddings.shape[3])        # B(T+1) x C+1 x D
+        #print(embeddingsS.shape)
+        #torch.Size([130, 3, 768])        # B(T+1) x C+1 x D
+
+        embeddings = embeddings.transpose(2, 1)          # B x C+1 x T+1 x D
+        embeddingsT =  embeddings.reshape(embeddings.shape[0]*embeddings.shape[1], embeddings.shape[2], embeddings.shape[3])          # B(C+1) x T+1 x D
+        #print(embeddingsT.shape)
+        #torch.Size([30, 13, 768])        # B(C+1) x T+1 x D
+
+        embeddingsS = self.dropout(embeddingsS)
+        embeddingsT = self.dropout(embeddingsT)
         #print("End of the Embeding Layer")
 
-        return embeddings
+        return embeddingsS, embeddingsT
 
 
 #%%
@@ -201,39 +316,86 @@ class Block(nn.Module):
         self.ffn_norm = LayerNorm(config.hidden_size, eps=1e-6)
         self.ffn = Mlp(config)
         self.attn = Attention(config, vis)
-
+        self.in_channels= config.in_channels
     def forward(self, x):
         h = x
+
         #print("I am in the Block Lalyer")
         #print(x.shape)
-        #torch.Size([10, 25, 768])
-
+        #torch.Size([30, 13, 768])
+         
         x = self.attention_norm(x)
         #print(x.shape)
-        #torch.Size([10, 25, 768])
+        #torch.Size([x = x.reshape(int(x.shape[0]/self.in_channels), self.in_channels, -1, self.hidden_size ) # Reshape back for variation in batch size based on channels for channel independence Biaxial20, 13, 768])
 
         x, weights = self.attn(x)
         #print(x.shape)
-        #torch.Size([10, 25, 768])
+        #torch.Size([30, 13, 768])
 
         x = x + h
         #print(x.shape)
-        #torch.Size([10, 25, 768])
+        #torch.Size([30, 13, 768])
 
         h = x
         x = self.ffn_norm(x)
         #print(x.shape)
-        #torch.Size([10, 25, 768])
+        #torch.Size([30, 13, 768])
 
         x = self.ffn(x)
         #print(x.shape)
-        #torch.Size([10, 25, 768])
+        #torch.Size([30, 13, 768])
 
         x = x + h
+        
         #print(x.shape)
-        #torch.Size([10, 25, 768])
+        #torch.Size([10, 2+1, 12+1, 768])
         #print("End of the Block Lalyer")
         return x, weights
+
+
+class PositionwiseFeedForward(nn.Module):
+    ''' A two-feed-forward-layer module '''
+
+    def __init__(self, d_in, d_hid, dropout=0.1):
+        super().__init__()
+        self.w_1 = nn.Linear(d_in, d_hid) # position-wise
+        self.w_2 = nn.Linear(d_hid, d_in) # position-wise
+        self.layer_norm = nn.LayerNorm(d_in, eps=1e-6)
+        self.dropout = nn.Dropout(dropout)
+        self.act_fn = ACT2FN["gelu"]
+
+    def forward(self, x):
+        residual = x
+        x = self.w_2(self.act_fn(self.w_1(x)))
+        x = self.dropout(x)
+        x += residual
+
+        x = self.layer_norm(x)
+
+        return x
+
+#%%
+class CrossBlock(nn.Module):
+    def __init__(self, config, vis):
+        super(CrossBlock, self).__init__()
+        self.hidden_size = config.hidden_size
+        self.attn = CrossAttention(config, vis)
+        self.pos_ffn = PositionwiseFeedForward(config.hidden_size, config.transformer["mlp_dim"],config.transformer["dropout_rate"])
+
+    def forward(self, q, k, v):
+        #print("I am in the CrossBlock Lalyer")
+        #print(q.shape)
+        #print(k.shape)
+        #print(v.shape)
+        #torch.Size([20, 13, 768])
+         
+        x, weights = self.attn(q, k, v)
+        #print(x.shape)
+        #torch.Size([20, 13, 768])
+        x = self.pos_ffn(x)
+        #print("End of the CrossBlock Lalyer")
+        return x, weights
+
 
 
 #%%
@@ -257,17 +419,78 @@ class Encoder(nn.Module):
         return encoded, attn_weights
 
 
+
+#%%
+class Decoder(nn.Module):
+    def __init__(self, config, vis):
+        super(Decoder, self).__init__()
+        self.vis = vis
+        self.layer = nn.ModuleList()
+        self.decoder_norm = LayerNorm(config.hidden_size, eps=1e-6)
+        for _ in range(config.transformer["num_layers"]):
+            layer = CrossBlock(config, vis)   #ddddddd
+            self.layer.append(copy.deepcopy(layer))
+
+    def forward(self, q_hidden_states, k_hidden_states, v_hidden_states):
+        attn_weights = []
+        for layer_block in self.layer:
+            hidden_states, weights = layer_block(q_hidden_states, k_hidden_states, v_hidden_states)
+            if self.vis:
+                attn_weights.append(weights)
+        decoded = self.decoder_norm(hidden_states)
+        return decoded, attn_weights
+
+
+
 #%%
 class Transformer(nn.Module):
     def __init__(self, config, vis):
         super(Transformer, self).__init__()
         self.embeddings = Embeddings(config)
-        self.encoder = Encoder(config, vis)
+        self.encoderS = Encoder(config, vis)
+        self.encoderT = Encoder(config, vis)
+        self.decoderTS = Decoder(config, vis)
+        self.hidden_size = config.hidden_size
+
+
+        self.no_tokensT =  12 + 1  # 12 tokens for 5 mins, 24 for 10 mins
+        self.no_tokensS =  config.in_channels + 1
 
     def forward(self, input_ids):
-        embedding_output = self.embeddings(input_ids)
-        encoded, attn_weights = self.encoder(embedding_output)
-        return encoded, attn_weights
+        #print('I am in Transformer')
+        embeddingsS, embeddingsT = self.embeddings(input_ids)
+
+        encodedS, attn_weightsS = self.encoderS(embeddingsS)
+        encodedT, attn_weightsT = self.encoderT(embeddingsT)
+
+        xS = encodedS
+        #print('size of XS', xS.shape)       
+        # 130 x 3 x 768    # B(T+1) x C+1 x D
+
+        # Note: T is reference and S is used as supporter 
+        xS = xS.reshape(int(xS.shape[0]/self.no_tokensT), self.no_tokensT, -1, self.hidden_size ) # Reshape back for variation in batch size based on channels for channel independence Biaxial
+        #print(xS.shape)      
+        #torch.Size([10, 13, 3, 768])     # B x T+1 x C+1 x D 
+        xS = xS.permute(0, 2, 1, 3) 
+        #print(xS.shape)
+        #torch.Size([10, 3, 13, 768]) 
+
+        #embeddings = embeddings.transpose(2, 1)          # B x C+1 x T+1 x D
+        xS =  xS.reshape(xS.shape[0]*xS.shape[1], xS.shape[2], xS.shape[3])          # B(C+1) x T+1 x D
+        #print(xS.shape)
+        #torch.Size([30, 13, 768])        # B(C+1) x T+1 x D
+
+        xT = encodedT
+        #print('size of XT', xT.shape)      #  B(C+1) x T+1 x D
+        # 30 x 13 x 768 
+
+        q = xT
+        k = xT
+        v = xS
+        decodedTS, attn_weightsTS = self.decoderTS(q, k, v)
+        #print(decodedTS.shape)
+        #print('End of Transformer')
+        return decodedTS, attn_weightsTS #encodedS, attn_weightsS, encodedT, attn_weightsT
 
 
 #%%
@@ -275,31 +498,47 @@ class VisionTransformer(nn.Module):
     def __init__(self, config, zero_head=False, vis=False):
         super(VisionTransformer, self).__init__()
 
-        no_tokens = config.in_channels * 27 + 1
+        self.no_tokensT =  12 + 1  # 12 tokens for 5 mins, 24 for 10 mins
+        self.no_tokensS =  config.in_channels + 1
+        
         self.num_classes = config.num_classes
         self.zero_head = zero_head
         self.classifier = config.classifier
+        self.in_channels = config.in_channels
+        self.hidden_size = config.hidden_size
         self.transformer = Transformer(config, vis)
-        self.head = Linear(config.hidden_size*no_tokens, self.num_classes)
+        self.head = nn.Sequential(
+                nn.Flatten(), 
+                nn.Linear((self.no_tokensS *  self.no_tokensT) * config.hidden_size , self.num_classes) ) # changes according to biaxial
+
         #self.regress = Linear(config.hidden_size*no_tokens, 1)
+        self.softmax = Softmax(dim=-1)
 
     def forward(self, x, labels=None, cpcs=None):
         #print(x.shape)
-        x, attn_weights = self.transformer(x)
-        #print('I am in the VisionTransformer')
+        decodedTS, attn_weightsTS = self.transformer(x)
+        #print('VIT')
+        #print(decodedTS.shape)
+        #print(decodedTS.shape)
+        #torch.Size([30, 13, 768])    B(C+1) x T+1 x D
+
+        decodedTS = decodedTS.reshape(int(decodedTS.shape[0]/self.no_tokensS), self.no_tokensS, -1, self.hidden_size ) # Reshape back for variation in batch size based on channels for channel independence Biaxial
+        #print(decodedTS.shape)       
+        #torch.Size([10, 3, 13, 768])   # B x (C+1) x T+1 x D
+
+        x = x.transpose(1, 2)           
+        #torch.Size([10, 13, 3, 768])   B x (T+1) x (C+) x D    
+
+
+        #x = x.flatten(1)
         #print(x.shape)
-        #torch.Size([1, n_takens, 768])
-        #print(x[:, 0].shape)
-        #torch.Size([1, 768])
-        x = x.flatten(1)
-        #print(x.shape)
-        logits = self.head(x) #[:, 0])
+        logits = self.head(decodedTS) #[:, 0])
         #regression = self.regress(x) #[:, 0])
         #torch.Size([1, 1000])
         #print(logits.shape)
         #print("I am output: ", logits)
-        #print('End of the VisionTransformer')
-
+        #print('End of the VIT')
+        #print(logits.shape)
         if labels is not None and cpcs is not None:
             # if batch size = 9
             #print("I am in the loss")
@@ -313,7 +552,7 @@ class VisionTransformer(nn.Module):
             #print(loss)
             return loss1 #loss2 
         else:
-            return logits, attn_weights
+            return logits
 
 
 #%%
@@ -355,8 +594,8 @@ class FeatureExtractor(nn.Module):
         self.conv_layers = nn.ModuleList([
             GroupNormConvLayer(in_channels, out_channels, 10, 5, groups=in_channels),
             NoLayerNormConvLayer(out_channels, out_channels, 5, 3, groups=in_channels),
-            NoLayerNormConvLayer(out_channels, out_channels, 5, 2, groups=in_channels),
-            NoLayerNormConvLayer(out_channels, out_channels, 5, 2, groups=in_channels),
+            NoLayerNormConvLayer(out_channels, out_channels, 5, 3, groups=in_channels),
+            NoLayerNormConvLayer(out_channels, out_channels, 5, 3, groups=in_channels),
             NoLayerNormConvLayer(out_channels, out_channels, 5, 2, groups=in_channels),
             NoLayerNormConvLayer(out_channels, out_channels, 3, 3, groups=in_channels),
             NoLayerNormConvLayer(out_channels, out_channels, 3, 3, groups=in_channels)
